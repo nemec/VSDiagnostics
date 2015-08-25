@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Editing;
 
 namespace VSDiagnostics.Diagnostics.Exceptions.ArgumentExceptionWithoutNameofOperator
 {
@@ -25,31 +26,33 @@ namespace VSDiagnostics.Diagnostics.Exceptions.ArgumentExceptionWithoutNameofOpe
             var diagnosticSpan = diagnostic.Location.SourceSpan;
             var objectCreationExpression = root.FindToken(diagnosticSpan.Start).Parent.AncestorsAndSelf().OfType<ObjectCreationExpressionSyntax>().First();
 
-            context.RegisterCodeFix(CodeAction.Create(VSDiagnosticsResources.ArgumentExceptionWithoutNameofOperatorCodeFixTitle, x => UseNameofAsync(context.Document, root, objectCreationExpression), nameof(ArgumentExceptionWithoutNameofOperatorAnalyzer)), diagnostic);
+            context.RegisterCodeFix(
+                CodeAction.Create(VSDiagnosticsResources.ArgumentExceptionWithoutNameofOperatorCodeFixTitle, x => UseNameofAsync(context.Document, objectCreationExpression),
+                    nameof(ArgumentExceptionWithoutNameofOperatorAnalyzer)), diagnostic);
         }
 
-        private Task<Solution> UseNameofAsync(Document document, SyntaxNode root, ObjectCreationExpressionSyntax objectCreationExpression)
+        private async Task<Document> UseNameofAsync(Document document, ObjectCreationExpressionSyntax objectCreationExpression)
         {
             var method = objectCreationExpression.Ancestors().OfType<MethodDeclarationSyntax>().First();
             var methodParameters = method.ParameterList.Parameters;
             var expressionArguments = objectCreationExpression.ArgumentList.Arguments.Select(x => x.Expression).OfType<LiteralExpressionSyntax>();
 
+            var editor = await DocumentEditor.CreateAsync(document);
+
             foreach (var expressionArgument in expressionArguments)
             {
                 foreach (var methodParameter in methodParameters)
                 {
-                    if (string.Equals((string) methodParameter.Identifier.Value, (string) expressionArgument.Token.Value, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(methodParameter.Identifier.ValueText, expressionArgument.Token.ValueText, StringComparison.OrdinalIgnoreCase))
                     {
                         var newExpression = SyntaxFactory.ParseExpression($"nameof({methodParameter.Identifier})");
-                        var newParent = objectCreationExpression.ReplaceNode(expressionArgument, newExpression);
-                        var newRoot = root.ReplaceNode(objectCreationExpression, newParent);
-                        var newDocument = document.WithSyntaxRoot(newRoot);
-                        return Task.FromResult(newDocument.Project.Solution);
+                        editor.ReplaceNode(expressionArgument, newExpression);
+                        return editor.GetChangedDocument();
                     }
                 }
             }
 
-            return null;
+            throw new InvalidOperationException(nameof(ArgumentExceptionWithoutNameofOperatorCodeFix));
         }
     }
 }

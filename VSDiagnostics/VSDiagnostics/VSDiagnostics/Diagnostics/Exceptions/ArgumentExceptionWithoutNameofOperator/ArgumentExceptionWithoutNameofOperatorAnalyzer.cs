@@ -25,12 +25,13 @@ namespace VSDiagnostics.Diagnostics.Exceptions.ArgumentExceptionWithoutNameofOpe
 
         public override void Initialize(AnalysisContext context)
         {
-            context.RegisterSyntaxNodeAction(AnalyzeSyntaxNode, SyntaxKind.ObjectCreationExpression);
+            context.RegisterSyntaxNodeAction(AnalyzeSyntaxNode, SyntaxKind.ThrowStatement);
         }
 
         private void AnalyzeSyntaxNode(SyntaxNodeAnalysisContext context)
         {
-            var objectCreationExpression = context.Node as ObjectCreationExpressionSyntax;
+            var throwStatement = (ThrowStatementSyntax) context.Node;
+            var objectCreationExpression = throwStatement.Expression as ObjectCreationExpressionSyntax;
             if (objectCreationExpression?.ArgumentList == null || !objectCreationExpression.ArgumentList.Arguments.Any())
             {
                 return;
@@ -38,7 +39,7 @@ namespace VSDiagnostics.Diagnostics.Exceptions.ArgumentExceptionWithoutNameofOpe
 
             var exceptionType = objectCreationExpression.Type;
             var symbolInformation = context.SemanticModel.GetSymbolInfo(exceptionType);
-            if (symbolInformation.Symbol.InheritsFrom(typeof (ArgumentException)))
+            if (symbolInformation.Symbol != null && symbolInformation.Symbol.InheritsFrom(typeof(ArgumentException)))
             {
                 var arguments = objectCreationExpression.ArgumentList.Arguments.Select(x => x.Expression).OfType<LiteralExpressionSyntax>();
                 var methodParameters = objectCreationExpression.Ancestors().OfType<MethodDeclarationSyntax>().FirstOrDefault()?.ParameterList.Parameters;
@@ -51,11 +52,10 @@ namespace VSDiagnostics.Diagnostics.Exceptions.ArgumentExceptionWithoutNameofOpe
 
                 foreach (var argument in arguments)
                 {
-                    var argumentName = argument.Token.Value;
-                    var correspondingParameter = methodParameters.Value.FirstOrDefault(x => string.Equals((string) x.Identifier.Value, (string) argumentName, StringComparison.OrdinalIgnoreCase));
+                    var correspondingParameter = methodParameters.Value.FirstOrDefault(x => string.Equals(x.Identifier.ValueText, argument.Token.ValueText, StringComparison.OrdinalIgnoreCase));
                     if (correspondingParameter != null)
                     {
-                        context.ReportDiagnostic(Diagnostic.Create(Rule, argument.GetLocation(), correspondingParameter.Identifier.Value));
+                        context.ReportDiagnostic(Diagnostic.Create(Rule, argument.GetLocation(), correspondingParameter.Identifier.ValueText));
                         return;
                     }
                 }

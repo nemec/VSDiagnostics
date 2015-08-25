@@ -383,5 +383,154 @@ namespace ConsoleApplication1
             VerifyDiagnostic(original, string.Format(ArgumentExceptionWithoutNameofOperatorAnalyzer.Rule.MessageFormat.ToString(), "input"));
             VerifyFix(original, result);
         }
+
+        [TestMethod]
+        public void ArgumentExceptionWithoutNameofOperator_WithDifferentException()
+        {
+            var original = @"
+    using System;
+    using System.Text;
+
+    namespace ConsoleApplication1
+    {
+        class MyClass
+        {   
+            void Method(string input)
+            {
+                throw new AggregateException();
+            }
+        }
+    }";
+
+            VerifyDiagnostic(original);
+        }
+
+        [TestMethod]
+        public void ArgumentExceptionWithoutNameofOperator_WithSeparatelyDefinedException()
+        {
+            var original = @"
+    using System;
+    using System.Text;
+
+    namespace ConsoleApplication1
+    {
+        class MyClass
+        {   
+            void Method(string input)
+            {
+                var exception = new ArgumentException(""input"");
+                throw exception;
+            }
+        }
+    }";
+
+            VerifyDiagnostic(original);
+        }
+
+        [TestMethod]
+        public void ArgumentExceptionWithoutNameofOperator_WithEmptyThrowStatement()
+        {
+            var original = @"
+    using System;
+    using System.Text;
+
+    namespace ConsoleApplication1
+    {
+        class MyClass
+        {   
+            void Method(string input)
+            {
+                try
+                {
+
+                }
+                catch
+                {
+                    throw;
+                }
+            }
+        }
+    }";
+
+            VerifyDiagnostic(original);
+        }
+
+        [TestMethod]
+        public void ArgumentExceptionWithoutNameofOperator_WithDescriptiveDoubleArgument()
+        {
+            var original = @"
+    using System;
+    using System.Text;
+
+    namespace ConsoleApplication1
+    {
+        class MyClass
+        {   
+            void Method(string input)
+            {
+                throw new ArgumentException(""the value was invalid"", ""input"");
+            }
+        }
+    }";
+
+            var result = @"
+    using System;
+    using System.Text;
+
+    namespace ConsoleApplication1
+    {
+        class MyClass
+        {   
+            void Method(string input)
+            {
+                throw new ArgumentException(""the value was invalid"", nameof(input));
+            }
+        }
+    }";
+
+            VerifyDiagnostic(original, string.Format(ArgumentExceptionWithoutNameofOperatorAnalyzer.Rule.MessageFormat.ToString(), "input"));
+            VerifyFix(original, result);
+        }
+
+        [TestMethod]
+        public void ArgumentExceptionWithoutNameofOperator_WithDescriptiveDoubleArgumentAsException()
+        {
+            var original = @"
+    using System;
+    using System.Text;
+
+    namespace ConsoleApplication1
+    {
+        class MyClass
+        {   
+            void Method(string input)
+            {
+                throw new ArgumentException(""the value was invalid"", new Exception());
+            }
+        }
+    }";
+            VerifyDiagnostic(original);
+        }
+
+        [TestMethod]
+        public void ArgumentExceptionWithoutNameofOperator_WithoutArgument()
+        {
+            var original = @"
+    using System;
+    using System.Text;
+
+    namespace ConsoleApplication1
+    {
+        class MyClass
+        {   
+            void Method(string input)
+            {
+                throw new ArgumentException();
+            }
+        }
+    }";
+
+            VerifyDiagnostic(original);
+        }
     }
 }
